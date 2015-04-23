@@ -215,8 +215,9 @@ class SlippageModel(with_metaclass(abc.ABCMeta)):
 class VolumeShareSlippage(SlippageModel):
 
     def __init__(self,
-                 volume_limit=.25,
-                 price_impact=0.1):
+                 volume_limit=.025,
+                 price_impact=0.1,
+                 minimum_price_impact=0.0003):
 
         self.volume_limit = volume_limit
         self.price_impact = price_impact
@@ -228,7 +229,8 @@ class VolumeShareSlippage(SlippageModel):
     price_impact={price_impact})
 """.strip().format(class_name=self.__class__.__name__,
                    volume_limit=self.volume_limit,
-                   price_impact=self.price_impact)
+                   price_impact=self.price_impact,
+                   minimum_price_impact=self.minimum_price_impact)
 
     def process_order(self, event, order):
 
@@ -257,7 +259,7 @@ class VolumeShareSlippage(SlippageModel):
 
         simulated_impact = volume_share ** 2 \
             * math.copysign(self.price_impact, order.direction) \
-            * event.price
+            * event.price + minimum_price_impact
         impacted_price = event.price + simulated_impact
 
         if order.limit:

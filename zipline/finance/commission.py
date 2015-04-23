@@ -26,11 +26,10 @@ class PerShare(object):
     share cost with an optional minimum cost per trade.
     """
 
-    def __init__(self, cost=0.03, min_trade_cost=None):
+    def __init__(self, cost=0.0075, min_trade_cost=None):
         """
-        Cost parameter is the cost of a trade per-share. $0.03
-        means three cents per share, which is a very conservative
-        (quite high) for per share costs.
+        Cost parameter is the cost of a trade per-share. $0.0075
+        means 3/4 of a cent per share.
         min_trade_cost parameter is the minimum trade cost
         regardless of the number of shares traded (e.g. $1.00).
         """
