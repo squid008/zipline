@@ -748,7 +748,7 @@ class HistoryContainer(object):
         DataFrame columns should contain at least the entries in
         zp.DIVIDEND_FIELDS.
         """
-        self.dividend_frame = dividend_frame
+        self.dividend_frame = dividend_frame.set_index('sid')
 
     def update_digest_panels(self, algo_dt, buffer_panel, freq_filter=None):
         """
