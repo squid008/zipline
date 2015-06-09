@@ -355,7 +355,7 @@ class PerformanceTracker(object):
         if txn:
             self.process_transaction(txn)
 
-    def check_upcoming_dividends(self, next_trading_day):
+    def check_upcoming_dividends(self, next_trading_day, history_container):
         """
         Check if we currently own any stocks with dividends whose ex_date is
         the next trading day.  Track how much we should be payed on those
@@ -385,6 +385,7 @@ class PerformanceTracker(object):
         position_tracker = self.position_tracker
         if len(dividends_earnable):
             position_tracker.earn_dividends(dividends_earnable)
+            history_container.adjust_history(dividends_earnable)
 
         if not len(dividends_payable):
             return
@@ -411,7 +412,7 @@ class PerformanceTracker(object):
         for event in auto_close_events:
             self.process_close_position(event)
 
-    def handle_minute_close(self, dt):
+    def handle_minute_close(self, dt, history_container):
         """
         Handles the close of the given minute. This includes handling
         market-close functions if the given minute is the end of the market
@@ -448,11 +449,14 @@ class PerformanceTracker(object):
         # if this is the close, update dividends for the next day.
         # Return the performance tuple
         if dt == self.market_close:
-            return (minute_packet, self._handle_market_close(todays_date))
+            return (
+                minute_packet,
+                self._handle_market_close(todays_date, history_container)
+            )
         else:
             return (minute_packet, None)
 
-    def handle_market_close_daily(self):
+    def handle_market_close_daily(self, history_container):
         """
         Function called after handle_data when running with daily emission
         rate.
@@ -468,9 +472,9 @@ class PerformanceTracker(object):
             self.all_benchmark_returns[completed_date],
             account)
 
-        return self._handle_market_close(completed_date)
+        return self._handle_market_close(completed_date, history_container)
 
-    def _handle_market_close(self, completed_date):
+    def _handle_market_close(self, completed_date, history_container):
 
         # increment the day counter before we move markers forward.
         self.day_count += 1.0
@@ -512,7 +516,8 @@ class PerformanceTracker(object):
 
         # Check for any dividends and auto-closes, then return the daily perf
         # packet
-        self.check_upcoming_dividends(next_trading_day=next_trading_day)
+        self.check_upcoming_dividends(next_trading_day=next_trading_day,
+                                      history_container=history_container)
         return daily_update
 
     def handle_simulation_end(self):
