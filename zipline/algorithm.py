@@ -15,9 +15,9 @@
 from copy import copy
 import warnings
 
+import numpy as np
 import pytz
 import pandas as pd
-import numpy as np
 
 from datetime import datetime
 
@@ -738,7 +738,7 @@ class TradingAlgorithm(object):
         Default symbol lookup for any source that directly maps the
         symbol to the Asset (e.g. yahoo finance).
         """
-        return self.asset_finder.lookup_symbol_resolve_multiple(
+        return self.asset_finder.lookup_symbol(
             symbol_str,
             as_of_date=self.datetime)
 

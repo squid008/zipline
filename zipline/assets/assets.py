@@ -16,6 +16,7 @@ from abc import ABCMeta
 from functools import partial
 from numbers import Integral
 from operator import getitem, itemgetter
+import re
 import warnings
 
 from logbook import Logger
@@ -24,7 +25,7 @@ import pandas as pd
 from pandas.tseries.tools import normalize_date
 from six import with_metaclass, string_types
 import sqlalchemy as sa
-from toolz import compose
+from toolz import compose, get
 
 from zipline.errors import (
     MultipleSymbolsFound,
@@ -49,6 +50,7 @@ class AssetFinder(object):
     # Token used as a substitute for pickling objects that contain a
     # reference to an AssetFinder
     PERSISTENT_TOKEN = "<AssetFinder>"
+    SYMBOL_SPLIT_RE = '[./-_]'
 
     def __init__(self, engine, allow_sid_assignment=True, fuzzy_char=None):
 
@@ -198,6 +200,8 @@ class AssetFinder(object):
                 data['first_traded'] = pd.Timestamp(
                     data['first_traded'], tz='UTC')
 
+            #data['symbol'] = data['symbol'] + _ + data['share_class']
+
             equity = Equity(**data)
         else:
             equity = None
@@ -243,7 +247,8 @@ class AssetFinder(object):
         self._future_cache[sid] = future
         return future
 
-    def lookup_symbol_resolve_multiple(self, symbol, as_of_date=None):
+    def lookup_symbol_resolve_multiple(self, symbol, symbol_share_class,
+                                       as_of_date=None):
         """
         Return matching Asset of name symbol in database.
 
@@ -252,8 +257,7 @@ class AssetFinder(object):
 
         If no Asset was active at as_of_date raises SymbolNotFound.
         """
-        if as_of_date is not None:
-            as_of_date = pd.Timestamp(normalize_date(as_of_date))
+        combined_symbol = lambda: "_".join([symbol, symbol_share_class])
 
         equities_cols = self.equities.c
         if as_of_date:
@@ -262,9 +266,11 @@ class AssetFinder(object):
             # If one SID exists for symbol, return that symbol
             candidates = sa.select((equities_cols.sid,)).where(
                 (equities_cols.symbol == symbol) &
+                (equities_cols.symbol_share_class == symbol_share_class) &
                 (equities_cols.start_date <= ad_value) &
                 (equities_cols.end_date >= ad_value),
             ).execute().fetchall()
+
             if len(candidates) == 1:
                 return self._retrieve_equity(candidates[0]['sid'])
 
@@ -273,6 +279,7 @@ class AssetFinder(object):
             elif not candidates:
                 sid = sa.select((equities_cols.sid,)).where(
                     (equities_cols.symbol == symbol) &
+                    (equities_cols.symbol_share_class == symbol_share_class) &
                     (equities_cols.start_date <= ad_value),
                 ).order_by(
                     equities_cols.end_date.desc(),
@@ -285,6 +292,7 @@ class AssetFinder(object):
             elif len(candidates) > 1:
                 sid = sa.select((equities_cols.sid,)).where(
                     (equities_cols.symbol == symbol) &
+                    (equities_cols.symbol_share_class == symbol_share_class) &
                     (equities_cols.start_date <= ad_value),
                 ).order_by(
                     equities_cols.start_date.desc(),
@@ -293,26 +301,27 @@ class AssetFinder(object):
                 if sid is not None:
                     return self._retrieve_equity(sid)
 
-            raise SymbolNotFound(symbol=symbol)
+            raise SymbolNotFound(symbol=combined_symbol())
 
         else:
             sids = sa.select((equities_cols.sid,)).where(
-                equities_cols.symbol == symbol,
+                (equities_cols.symbol == symbol) &
+                (equities_cols.symbol_share_class == symbol_share_class)
             ).execute().fetchall()
             if len(sids) == 1:
                 return self._retrieve_equity(sids[0]['sid'])
             elif not sids:
-                raise SymbolNotFound(symbol=symbol)
+                raise SymbolNotFound(symbol=combined_symbol())
             else:
                 raise MultipleSymbolsFound(
-                    symbol=symbol,
+                    symbol=combined_symbol(),
                     options=list(map(
                         compose(self._retrieve_equity, itemgetter('sid')),
                         sids,
                     ))
                 )
 
-    def lookup_symbol(self, symbol, as_of_date, fuzzy=False):
+    def lookup_symbol(self, symbol_str, as_of_date):
         """
         If a fuzzy string is provided, then we try various symbols based on
         the provided symbol.  This is to facilitate mapping from a broker's
@@ -321,43 +330,25 @@ class AssetFinder(object):
         when the broker provides CMCSA, it can also provide fuzzy='_',
         so we can find a match by inserting an underscore.
         """
+        symbol, symbol_share_class = map(
+            str.upper,
+            get(
+                [0, 1],
+                re.split(self.SYMBOL_SPLIT_RE, symbol_str),
+                ''
+            )
+        )
 
-        symbol = symbol.upper()
         ad_value = pd.Timestamp(normalize_date(as_of_date)).value
 
-        if not fuzzy:
-            try:
-                return self.lookup_symbol_resolve_multiple(symbol, as_of_date)
-            except SymbolNotFound:
-                return None
-
-        fuzzy = symbol.replace(self.fuzzy_char, '')
-
-        equities_cols = self.equities.c
-        candidates = sa.select((equities_cols.sid,)).where(
-            (equities_cols.fuzzy == fuzzy) &
-            (equities_cols.start_date <= ad_value) &
-            (equities_cols.end_date >= ad_value),
-        ).execute().fetchall()
-
-        # If one SID exists for symbol, return that symbol
-        if len(candidates) == 1:
-            return self._retrieve_equity(candidates[0]['sid'])
-
-        # If multiple SIDs exist for symbol, return latest start_date with
-        # end_date as a tie-breaker
-        elif candidates:
-            sid = sa.select((equities_cols.sid,)).where(
-                (equities_cols.symbol == symbol) &
-                (equities_cols.start_date <= ad_value),
-            ).order_by(
-                equities_cols.start_date.desc(),
-                equities_cols.end_date.desc(),
-            ).scalar()
-            if sid:
-                return self._retrieve_equity(sid)
-
-        raise SymbolNotFound(symbol=symbol)
+        try:
+            return self.lookup_symbol_resolve_multiple(
+                symbol, symbol_share_class, ad_value
+            )
+        except SymbolNotFound:
+            return self.asset_finder.lookup_symbol_resolve_multiple(
+                symbol, '', as_of_date=self.datetime
+            )
 
     def lookup_future_chain(self, root_symbol, as_of_date, knowledge_date):
         """ Return the futures chain for a given root symbol.

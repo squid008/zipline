@@ -18,6 +18,7 @@ AssetData = namedtuple('AssetData', 'equities futures exchanges root_symbols')
 ASSET_TABLE_FIELDS = frozenset({
     'sid',
     'symbol',
+    'symbol_share_class',
     'asset_name',
     'start_date',
     'end_date',
@@ -52,12 +53,12 @@ ROOT_SYMBOL_TABLE_FIELDS = frozenset({
 # Default values for the equities DataFrame
 _equities_defaults = {
     'symbol': None,
+    'symbol_share_class': None,
     'asset_name': None,
     'start_date': 0,
     'end_date': 2 ** 62 - 1,
     'first_traded': None,
-    'exchange': None,
-    'fuzzy': None,
+    'exchange': None
 }
 
 # Default values for the futures DataFrame
@@ -152,8 +153,7 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
 
     Methods
     -------
-    write_all(engine, fuzzy_char=None, allow_sid_assignment=True,
-              constraints=False)
+    write_all(engine, allow_sid_assignment=True, constraints=False)
         Write the data supplied at initialization to the database.
     init_db(engine, constraints=False)
         Create the SQLite tables (called by write_all).
@@ -166,7 +166,6 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
 
     def write_all(self,
                   engine,
-                  fuzzy_char=None,
                   allow_sid_assignment=True,
                   constraints=True):
         """ Write pre-supplied data to SQLite.
@@ -175,8 +174,6 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
         ----------
         engine : Engine
             An SQLAlchemy engine to a SQL database.
-        fuzzy_char : str, optional
-            A string for use in fuzzy matching.
         allow_sid_assignment: bool, optional
             If True then the class can assign sids where necessary.
         constraints : bool, optional
@@ -195,7 +192,7 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
             self._write_exchanges(data.exchanges, txn)
             self._write_root_symbols(data.root_symbols, txn)
             self._write_futures(data.futures, txn)
-            self._write_equities(data.equities, fuzzy_char, txn)
+            self._write_equities(data.equities, txn)
 
     def _write_exchanges(self, exchanges, bind=None):
         recs = exchanges.reset_index().rename_axis(
@@ -225,10 +222,7 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
             self.asset_router.insert().values([(record['sid'], 'future')])\
                 .execute(bind=bind)
 
-    def _write_equities(self, equities, fuzzy_char, bind=None):
-        # Apply fuzzy matching.
-        if fuzzy_char:
-            equities['fuzzy'] = equities['symbol'].str.replace(fuzzy_char, '')
+    def _write_equities(self, equities, bind=None):
 
         recs = equities.reset_index().rename_axis(
             {'index': 'sid'},
@@ -261,12 +255,12 @@ class AssetDBWriter(with_metaclass(ABCMeta)):
                 primary_key=constraints,
             ),
             sa.Column('symbol', sa.Text),
+            sa.Column('symbol_share_class', sa.Text),
             sa.Column('asset_name', sa.Text),
             sa.Column('start_date', sa.Integer, default=0),
             sa.Column('end_date', sa.Integer),
             sa.Column('first_traded', sa.Integer),
             sa.Column('exchange', sa.Text),
-            sa.Column('fuzzy', sa.Text),
         )
         self.futures_exchanges = sa.Table(
             'futures_exchanges',

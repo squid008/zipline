@@ -288,12 +288,12 @@ class AssetFinderTestCase(TestCase):
             [
                 {
                     'sid': i,
-                    'symbol':  'TEST@%d' % i,
+                    'symbol':  'TEST',
+                    'symbol_share_class': '%d' % i,
                     'company_name': "company%d" % i,
                     'start_date_': as_of.value,
                     'end_date': as_of.value,
                     'exchange': uuid.uuid4().hex,
-                    'fuzzy': 'TEST%d' % i
                 }
                 for i in range(3)
             ]
