@@ -289,6 +289,11 @@ class AssetDateBounds(TradingControl):
         Asset's start date.
         """
         normalized_algo_dt = pd.Timestamp(algo_datetime).normalize()
+
+        # If the order is for 0 shares, then silently pass through.
+        if amount == 0:
+            return
+
         # Fail if the algo is before this Asset's start_date
         if asset.start_date:
             normalized_start = pd.Timestamp(asset.start_date).normalize()
