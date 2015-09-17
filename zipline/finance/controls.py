@@ -14,6 +14,8 @@
 # limitations under the License.
 import abc
 
+import pandas as pd
+
 from six import with_metaclass
 
 from zipline.errors import (
@@ -286,12 +288,29 @@ class AssetDateBounds(TradingControl):
         Fail if the algo has passed this Asset's end_date, or before the
         Asset's start date.
         """
+        normalized_algo_dt = pd.Timestamp(algo_datetime).normalize()
         # Fail if the algo is before this Asset's start_date
-        if asset.start_date and (algo_datetime < asset.start_date):
-            self.fail(asset, amount, algo_datetime)
+        if asset.start_date:
+            normalized_start = pd.Timestamp(asset.start_date).normalize()
+            if normalized_algo_dt < normalized_start:
+                self._fail_name = "asset_start_date"
+                self._fail_date = normalized_start
+                self.fail(asset, amount, algo_datetime)
         # Fail if the algo has passed this Asset's end_date
-        if asset.end_date and (algo_datetime >= asset.end_date):
-            self.fail(asset, amount, algo_datetime)
+        if asset.end_date:
+            normalized_end = pd.Timestamp(asset.end_date).normalize()
+            if normalized_algo_dt > normalized_end:
+                self._fail_name = "asset_end_date"
+                self._fail_date = normalized_end
+                self.fail(asset, amount, algo_datetime)
+
+    def __repr__(self):
+        # More descriptive repr, since AssetDateBounds depend on a dynamic
+        # comparison
+        return "{name}(\"{fail_name}\":\"{fail_date})\"".format(
+            name=self.__class__.__name__,
+            fail_name=self._fail_name,
+            fail_date=self._fail_date)
 
 
 class AccountControl(with_metaclass(abc.ABCMeta)):
