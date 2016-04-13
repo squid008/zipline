@@ -3144,7 +3144,7 @@ class TestOrderCancelation(WithDataPortal,
             sim_params=SimulationParameters(
                 period_start=self.sim_params.period_start,
                 period_end=self.sim_params.period_end,
-                trading_schedule=self.env,
+                trading_schedule=default_nyse_schedule,
                 data_frequency=data_frequency,
                 emission_rate='minute' if minute_emission else 'daily'
             )
@@ -3334,6 +3334,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
     @classmethod
     def init_class_fixtures(cls):
         super(TestEquityAutoClose, cls).init_class_fixtures()
+        trading_days = default_nyse_schedule.all_execution_days
         start_date = pd.Timestamp('2015-01-05', tz='UTC')
         start_date_loc = trading_days.get_loc(start_date)
         test_duration = 7
@@ -3349,7 +3350,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
             num_assets=3,
             start_date=self.test_days[0],
             first_end=self.first_asset_expiration,
-            frequency=trading_day,
+            frequency=default_nyse_schedule.day,
             periods_between_ends=2,
             auto_close_delta=auto_close_delta,
         )
@@ -3507,7 +3508,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         Make sure that after an equity gets delisted, our portfolio holds the
         correct number of equities and correct amount of cash.
         """
-        auto_close_delta = trading_day * auto_close_lag
+        auto_close_delta = default_nyse_schedule.day * auto_close_lag
         resources = self.make_data(auto_close_delta, 'daily', capital_base)
 
         assets = resources.assets
@@ -3667,7 +3668,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         canceled.  Unless an equity is auto closed, any open orders for that
         equity will persist indefinitely.
         """
-        auto_close_delta = trading_day
+        auto_close_delta = default_nyse_schedule.day
         resources = self.make_data(auto_close_delta, 'daily')
         env = resources.env
         assets = resources.assets
@@ -3739,7 +3740,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         )
 
     def test_minutely_delisted_equities(self):
-        resources = self.make_data(trading_day, 'minute')
+        resources = self.make_data(default_nyse_schedule.day, 'minute')
 
         env = resources.env
         assets = resources.assets
