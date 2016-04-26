@@ -9,12 +9,12 @@ Logbook==0.12.5
 # Scientific Libraries
 
 pytz==2015.4
-numpy==1.9.2
+numpy==1.11.0
 
 # scipy and pandas are required for statsmodels,
 # statsmodels in turn is required for some pandas packages
 scipy==0.15.1
-pandas==0.16.1
+pandas==0.18.0
 # Needed for parts of pandas.stats
 patsy==0.4.0
 statsmodels==0.6.1
