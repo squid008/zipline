@@ -96,6 +96,7 @@ from zipline.testing.fixtures import (
     WithSimParams,
     WithTradingEnvironment,
     WithTmpDir,
+    WithTradingSchedule,
     ZiplineTestCase,
 )
 from zipline.test_algorithms import (
@@ -165,7 +166,6 @@ from zipline.utils.control_flow import nullctx
 import zipline.utils.events
 from zipline.utils.events import date_rules, time_rules, Always
 import zipline.utils.factory as factory
-from zipline.utils.calendars import default_nyse_schedule
 
 # Because test cases appear to reuse some resources.
 
@@ -952,7 +952,7 @@ def before_trading_start(context, data):
                 period_end=period_end,
                 capital_base=float("1.0e5"),
                 data_frequency='minute',
-                trading_schedule=default_nyse_schedule,
+                trading_schedule=self.trading_schedule,
             )
 
             data_portal = create_data_portal(
@@ -960,7 +960,7 @@ def before_trading_start(context, data):
                 tempdir,
                 sim_params,
                 equities.index,
-                default_nyse_schedule,
+                self.trading_schedule,
             )
             algo = algo_class(sim_params=sim_params, env=env)
             algo.run(data_portal)
@@ -1553,9 +1553,9 @@ def handle_data(context, data):
                 env=self.env,
             )
             trades = factory.create_daily_trade_source(
-                [0], self.sim_params, self.env, default_nyse_schedule)
+                [0], self.sim_params, self.env, self.trading_schedule)
             data_portal = create_data_portal_from_trade_history(
-                self.env, default_nyse_schedule, tempdir, self.sim_params,
+                self.env, self.trading_schedule, tempdir, self.sim_params,
                 {0: trades})
             results = test_algo.run(data_portal)
 
@@ -1643,7 +1643,7 @@ def handle_data(context, data):
         params = SimulationParameters(
             period_start=pd.Timestamp("2007-01-03", tz='UTC'),
             period_end=pd.Timestamp("2007-01-05", tz='UTC'),
-            trading_schedule=default_nyse_schedule,
+            trading_schedule=self.trading_schedule,
         )
 
         # order method shouldn't blow up
@@ -2664,7 +2664,7 @@ class TestTradingControls(WithSimParams, WithDataPortal, ZiplineTestCase):
                 tempdir,
                 sim_params,
                 [1],
-                default_nyse_schedule,
+                self.trading_schedule,
             )
 
             def handle_data(algo, data):
@@ -2786,7 +2786,7 @@ class TestTradingControls(WithSimParams, WithDataPortal, ZiplineTestCase):
                 tempdir,
                 self.sim_params,
                 [0],
-                default_nyse_schedule,
+                self.trading_schedule,
             )
             algo.run(data_portal)
 
@@ -2801,7 +2801,7 @@ class TestTradingControls(WithSimParams, WithDataPortal, ZiplineTestCase):
                 tempdir,
                 self.sim_params,
                 [0],
-                default_nyse_schedule,
+                self.trading_schedule,
             )
             algo = SetAssetDateBoundsAlgorithm(
                 sim_params=self.sim_params,
@@ -2821,7 +2821,7 @@ class TestTradingControls(WithSimParams, WithDataPortal, ZiplineTestCase):
                 tempdir,
                 self.sim_params,
                 [0],
-                default_nyse_schedule,
+                self.trading_schedule,
             )
             algo = SetAssetDateBoundsAlgorithm(
                 sim_params=self.sim_params,
@@ -2847,7 +2847,7 @@ class TestAccountControls(WithDataPortal, WithSimParams, ZiplineTestCase):
                     [100, 100, 100, 300],
                     timedelta(days=1),
                     cls.sim_params,
-                    default_nyse_schedule,
+                    cls.trading_schedule,
                 ),
             },
             index=cls.sim_params.trading_days,
@@ -2994,7 +2994,7 @@ class TestFutureFlip(WithSimParams, WithDataPortal, ZiplineTestCase):
                     [1e9, 1e9, 1e9],
                     timedelta(days=1),
                     cls.sim_params,
-                    default_nyse_schedule,
+                    cls.trading_schedule,
                 ),
             },
             index=cls.sim_params.trading_days,
@@ -3004,7 +3004,7 @@ class TestFutureFlip(WithSimParams, WithDataPortal, ZiplineTestCase):
     def test_flip_algo(self):
         metadata = {1: {'symbol': 'TEST',
                         'start_date': self.sim_params.trading_days[0],
-                        'end_date': default_nyse_schedule.next_execution_day(
+                        'end_date': self.trading_schedule.next_execution_day(
                             self.sim_params.trading_days[-1]),
                         'multiplier': 5}}
 
@@ -3147,7 +3147,7 @@ class TestOrderCancelation(WithDataPortal,
             sim_params=SimulationParameters(
                 period_start=self.sim_params.period_start,
                 period_end=self.sim_params.period_end,
-                trading_schedule=default_nyse_schedule,
+                trading_schedule=self.trading_schedule,
                 data_frequency=data_frequency,
                 emission_rate='minute' if minute_emission else 'daily'
             )
@@ -3329,7 +3329,7 @@ class TestRemoveData(TestCase):
         self.assertEqual(algo.data_lengths, self.live_asset_counts)
 
 
-class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
+class TestEquityAutoClose(WithTmpDir, WithTradingSchedule, ZiplineTestCase):
     """
     Tests if delisted equities are properly removed from a portfolio holding
     positions in said equities.
@@ -3337,7 +3337,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
     @classmethod
     def init_class_fixtures(cls):
         super(TestEquityAutoClose, cls).init_class_fixtures()
-        trading_days = default_nyse_schedule.all_execution_days
+        trading_days = cls.trading_schedule.all_execution_days
         start_date = pd.Timestamp('2015-01-05', tz='UTC')
         start_date_loc = trading_days.get_loc(start_date)
         test_duration = 7
@@ -3353,7 +3353,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
             num_assets=3,
             start_date=self.test_days[0],
             first_end=self.first_asset_expiration,
-            frequency=default_nyse_schedule.day,
+            frequency=self.trading_schedule.day,
             periods_between_ends=2,
             auto_close_delta=auto_close_delta,
         )
@@ -3361,10 +3361,10 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         sids = asset_info.index
 
         env = self.enter_instance_context(tmp_trading_env(equities=asset_info))
-        market_opens = default_nyse_schedule.schedule.market_open.loc[
+        market_opens = self.trading_schedule.schedule.market_open.loc[
             self.test_days
         ]
-        market_closes = default_nyse_schedule.schedule.market_close.loc[
+        market_closes = self.trading_schedule.schedule.market_close.loc[
             self.test_days
         ]
 
@@ -3386,11 +3386,11 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
                 iteritems(trade_data_by_sid),
             )
             data_portal = DataPortal(
-                env, default_nyse_schedule,
+                env, self.trading_schedule,
                 equity_daily_reader=BcolzDailyBarReader(path)
             )
         elif frequency == 'minute':
-            dates = default_nyse_schedule.execution_minutes_for_days_in_range(
+            dates = self.trading_schedule.execution_minutes_for_days_in_range(
                 self.test_days[0],
                 self.test_days[-1],
             )
@@ -3414,7 +3414,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
                 frequency=frequency
             )
             data_portal = DataPortal(
-                env, default_nyse_schedule,
+                env, self.trading_schedule,
                 equity_minute_reader=BcolzMinuteBarReader(self.tmpdir.path)
             )
         else:
@@ -3439,7 +3439,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         else:
             final_prices = {
                 asset.sid: trade_data_by_sid[asset.sid].loc[
-                    default_nyse_schedule.start_and_end(asset.end_date)[1]
+                    self.trading_schedule.start_and_end(asset.end_date)[1]
                 ].close
                 for asset in assets
             }
@@ -3511,7 +3511,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         Make sure that after an equity gets delisted, our portfolio holds the
         correct number of equities and correct amount of cash.
         """
-        auto_close_delta = default_nyse_schedule.day * auto_close_lag
+        auto_close_delta = self.trading_schedule.day * auto_close_lag
         resources = self.make_data(auto_close_delta, 'daily', capital_base)
 
         assets = resources.assets
@@ -3671,7 +3671,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         canceled.  Unless an equity is auto closed, any open orders for that
         equity will persist indefinitely.
         """
-        auto_close_delta = default_nyse_schedule.day
+        auto_close_delta = self.trading_schedule.day
         resources = self.make_data(auto_close_delta, 'daily')
         env = resources.env
         assets = resources.assets
@@ -3743,7 +3743,7 @@ class TestEquityAutoClose(WithTmpDir, ZiplineTestCase):
         )
 
     def test_minutely_delisted_equities(self):
-        resources = self.make_data(default_nyse_schedule.day, 'minute')
+        resources = self.make_data(self.trading_schedule.day, 'minute')
 
         env = resources.env
         assets = resources.assets
@@ -3931,7 +3931,7 @@ class TestOrderAfterDelist(WithTradingEnvironment, ZiplineTestCase):
             sim_params=SimulationParameters(
                 period_start=pd.Timestamp("2016-01-06", tz='UTC'),
                 period_end=pd.Timestamp("2016-01-07", tz='UTC'),
-                trading_schedule=default_nyse_schedule,
+                trading_schedule=self.trading_schedule,
                 data_frequency="minute"
             )
         )

@@ -24,7 +24,6 @@ from zipline.testing import (
     str_to_seconds,
     MockDailyBarReader,
 )
-from zipline.utils.calendars import default_nyse_schedule
 from zipline.testing.fixtures import (
     WithBcolzMinuteBarReader,
     WithDataPortal,
@@ -79,7 +78,7 @@ class WithHistory(WithDataPortal):
     @classmethod
     def init_class_fixtures(cls):
         super(WithHistory, cls).init_class_fixtures()
-        cls.trading_days = default_nyse_schedule.execution_days_in_range(
+        cls.trading_days = cls.trading_schedule.execution_days_in_range(
             start=cls.TRADING_START_DT,
             end=cls.TRADING_END_DT
         )
@@ -453,14 +452,14 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         for sid in sids:
             asset = cls.asset_finder.retrieve_asset(sid)
             data[sid] = create_minute_df_for_asset(
-                default_nyse_schedule,
+                cls.trading_schedule,
                 asset.start_date,
                 asset.end_date,
                 start_val=2,
             )
 
         data[1] = create_minute_df_for_asset(
-            default_nyse_schedule,
+            cls.trading_schedule,
             pd.Timestamp('2014-01-03', tz='utc'),
             pd.Timestamp('2016-01-30', tz='utc'),
             start_val=2,
@@ -468,7 +467,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
         asset3 = cls.asset_finder.retrieve_asset(3)
         data[3] = create_minute_df_for_asset(
-            default_nyse_schedule,
+            cls.trading_schedule,
             asset3.start_date,
             asset3.end_date,
             start_val=2,
@@ -498,7 +497,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
             capital_base=float('1.0e5'),
             data_frequency='minute',
             emission_rate='daily',
-            trading_schedule=default_nyse_schedule,
+            trading_schedule=self.trading_schedule,
         )
 
         test_algo = TradingAlgorithm(
@@ -514,8 +513,8 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     def test_minute_before_assets_trading(self):
         # since asset2 and asset3 both started trading on 1/5/2015, let's do
         # some history windows that are completely before that
-        minutes = default_nyse_schedule.execution_minutes_for_day(
-            default_nyse_schedule.previous_execution_day(pd.Timestamp(
+        minutes = self.trading_schedule.execution_minutes_for_day(
+            self.trading_schedule.previous_execution_day(pd.Timestamp(
                 '2015-01-05', tz='UTC'
             ))
         )[0:60]
@@ -564,7 +563,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         # 10 minutes
         asset = self.env.asset_finder.retrieve_asset(sid)
 
-        minutes = default_nyse_schedule.execution_minutes_for_day(
+        minutes = self.trading_schedule.execution_minutes_for_day(
             pd.Timestamp('2015-01-05', tz='UTC')
         )[0:60]
 
@@ -575,8 +574,8 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
     def test_minute_midnight(self):
         midnight = pd.Timestamp('2015-01-06', tz='UTC')
-        last_minute = default_nyse_schedule.start_and_end(
-            default_nyse_schedule.previous_execution_day(midnight)
+        last_minute = self.trading_schedule.start_and_end(
+            self.trading_schedule.previous_execution_day(midnight)
         )[1]
 
         midnight_bar_data = \
@@ -595,7 +594,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     def test_minute_after_asset_stopped(self):
         # SHORT_ASSET's last day was 2015-01-06
         # get some history windows that straddle the end
-        minutes = default_nyse_schedule.execution_minutes_for_day(
+        minutes = self.trading_schedule.execution_minutes_for_day(
             pd.Timestamp('2015-01-07', tz='UTC')
         )[0:60]
 
@@ -690,7 +689,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
             # before any of the adjustments, last 10 minutes of jan 5
             window1 = self.data_portal.get_history_window(
                 [asset],
-                default_nyse_schedule.start_and_end(jan5)[1],
+                self.trading_schedule.start_and_end(jan5)[1],
                 10,
                 '1m',
                 'close'
@@ -916,21 +915,21 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
     def test_minute_different_lifetimes(self):
         # at trading start, only asset1 existed
-        day = default_nyse_schedule.next_execution_day(self.TRADING_START_DT)
+        day = self.trading_schedule.next_execution_day(self.TRADING_START_DT)
 
         asset1_minutes = \
-            default_nyse_schedule.execution_minutes_for_days_in_range(
+            self.trading_schedule.execution_minutes_for_days_in_range(
                 start=self.ASSET1.start_date,
                 end=self.ASSET1.end_date
             )
 
         asset1_idx = asset1_minutes.searchsorted(
-            default_nyse_schedule.start_and_end(day)[0]
+            self.trading_schedule.start_and_end(day)[0]
         )
 
         window = self.data_portal.get_history_window(
             [self.ASSET1, self.ASSET2],
-            default_nyse_schedule.start_and_end(day)[0],
+            self.trading_schedule.start_and_end(day)[0],
             100,
             '1m',
             'close'
@@ -949,7 +948,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         # trading_start is 2/3/2014
         # get a history window that starts before that, and ends after that
         self.data_portal.set_first_trading_day(self.TRADING_START_DT)
-        first_day_minutes = default_nyse_schedule.execution_minutes_for_day(
+        first_day_minutes = self.trading_schedule.execution_minutes_for_day(
             self.TRADING_START_DT
         )
         exp_msg = (
@@ -1013,8 +1012,8 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     @classmethod
     def create_df_for_asset(cls, start_day, end_day, interval=1,
                             force_zeroes=False):
-        days = default_nyse_schedule.execution_days_in_range(start_day,
-                                                             end_day)
+        days = cls.trading_schedule.execution_days_in_range(start_day,
+                                                            end_day)
         days_count = len(days)
 
         # default to 2 because the low array subtracts 1, and we don't
@@ -1043,7 +1042,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     def test_daily_before_assets_trading(self):
         # asset2 and asset3 both started trading in 2015
 
-        days = default_nyse_schedule.execution_days_in_range(
+        days = self.trading_schedule.execution_days_in_range(
             start=pd.Timestamp('2014-12-15', tz='UTC'),
             end=pd.Timestamp('2014-12-18', tz='UTC'),
         )
@@ -1081,9 +1080,9 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         # get the first 30 days of 2015
         jan5 = pd.Timestamp('2015-01-04')
 
-        days = default_nyse_schedule.execution_days_in_range(
+        days = self.trading_schedule.execution_days_in_range(
             start=jan5,
-            end=default_nyse_schedule.add_execution_days(30, jan5)
+            end=self.trading_schedule.add_execution_days(30, jan5)
         )
 
         for idx, day in enumerate(days):
@@ -1126,7 +1125,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     def test_daily_after_asset_stopped(self):
         # SHORT_ASSET trades on 1/5, 1/6, that's it.
 
-        days = default_nyse_schedule.execution_days_in_range(
+        days = self.trading_schedule.execution_days_in_range(
             start=pd.Timestamp('2015-01-07', tz='UTC'),
             end=pd.Timestamp('2015-01-08', tz='UTC')
         )
@@ -1320,7 +1319,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
         # January 2015 has both daily and minute data for ASSET2
         day = pd.Timestamp('2015-01-07', tz='UTC')
-        minutes = default_nyse_schedule.execution_minutes_for_day(day)
+        minutes = self.trading_schedule.execution_minutes_for_day(day)
 
         # minute data, baseline:
         # Jan 5: 2 to 391
@@ -1376,7 +1375,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
         # January 2015 has both daily and minute data for ASSET2
         day = pd.Timestamp('2015-01-08', tz='UTC')
-        minutes = default_nyse_schedule.execution_minutes_for_day(day)
+        minutes = self.trading_schedule.execution_minutes_for_day(day)
 
         # minute data, baseline:
         # Jan 5: 2 to 391
@@ -1460,7 +1459,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         # get a history window that starts before that, and ends after that
 
         self.data_portal.set_first_trading_day(self.TRADING_START_DT)
-        second_day = default_nyse_schedule.next_execution_day(
+        second_day = self.trading_schedule.next_execution_day(
             self.TRADING_START_DT
         )
 
@@ -1489,7 +1488,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
 
         # Use a minute to force minute mode.
         first_minute = \
-            default_nyse_schedule.schedule.market_open[self.TRADING_START_DT]
+            self.trading_schedule.schedule.market_open[self.TRADING_START_DT]
 
         with self.assertRaisesRegexp(HistoryWindowStartsBeforeData, exp_msg):
             self.data_portal.get_history_window(
@@ -1619,7 +1618,7 @@ class MinuteToDailyAggregationTestCase(WithBcolzMinuteBarReader,
         # Set up a fresh data portal for each test, since order of calling
         # needs to be tested.
         self.equity_daily_aggregator = DailyHistoryAggregator(
-            default_nyse_schedule.schedule.market_open,
+            self.trading_schedule.schedule.market_open,
             self.bcolz_minute_bar_reader,
         )
 
