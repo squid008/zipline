@@ -558,11 +558,31 @@ class DataPortal(object):
 
         # get the first trading day from our readers.
         if self._equity_daily_reader is not None:
-            self._first_trading_day = \
+            self.set_first_trading_day(
                 self._equity_daily_reader.first_trading_day
+            )
         elif self._equity_minute_reader is not None:
-            self._first_trading_day = \
+            self.set_first_trading_day(
                 self._equity_minute_reader.first_trading_day
+            )
+
+    def set_first_trading_day(self, first_trading_day):
+        self._first_trading_day = first_trading_day
+
+        # Get the first trading minute
+        if self._first_trading_day is not None:
+            self._first_trading_minute, _ = \
+                self.trading_schedule.start_and_end(self._first_trading_day)
+
+            # Store the locs of the first day and first minute
+            self._first_trading_day_loc = \
+                self.trading_schedule.all_execution_days.get_loc(
+                    self.trading_schedule.session_date(self._first_trading_day)
+                )
+            self._first_trading_minute_loc = \
+                self.trading_schedule.all_execution_minutes.get_loc(
+                    self._first_trading_minute
+                )
 
     def _reindex_extra_source(self, df, source_date_index):
         return df.reindex(index=source_date_index, method='ffill')

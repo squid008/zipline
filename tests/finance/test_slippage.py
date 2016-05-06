@@ -38,7 +38,6 @@ from zipline.testing.fixtures import (
     WithSimParams,
     ZiplineTestCase,
 )
-from zipline.utils.calendars import default_nyse_schedule
 
 
 class SlippageTestCase(WithSimParams, WithDataPortal, ZiplineTestCase):
@@ -92,9 +91,10 @@ class SlippageTestCase(WithSimParams, WithDataPortal, ZiplineTestCase):
             start=normalize_date(self.minutes[0]),
             end=normalize_date(self.minutes[-1])
         )
-        with tmp_bcolz_minute_bar_reader(self.env, days, assets) as reader:
+        with tmp_bcolz_minute_bar_reader(self.trading_schedule, days, assets) \
+                as reader:
             data_portal = DataPortal(
-                self.env, default_nyse_schedule,
+                self.env, self.trading_schedule,
                 equity_minute_reader=reader,
             )
 
@@ -480,9 +480,10 @@ class SlippageTestCase(WithSimParams, WithDataPortal, ZiplineTestCase):
             start=normalize_date(self.minutes[0]),
             end=normalize_date(self.minutes[-1])
         )
-        with tmp_bcolz_minute_bar_reader(self.env, days, assets) as reader:
+        with tmp_bcolz_minute_bar_reader(self.trading_schedule, days, assets) \
+                as reader:
             data_portal = DataPortal(
-                self.env, default_nyse_schedule,
+                self.env, self.trading_schedule,
                 equity_minute_reader=reader,
             )
 

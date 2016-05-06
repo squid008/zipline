@@ -948,7 +948,7 @@ class MinuteEquityHistoryTestCase(WithHistory, ZiplineTestCase):
     def test_history_window_before_first_trading_day(self):
         # trading_start is 2/3/2014
         # get a history window that starts before that, and ends after that
-        self.data_portal._first_trading_day = self.TRADING_START_DT
+        self.data_portal.set_first_trading_day(self.TRADING_START_DT)
         first_day_minutes = default_nyse_schedule.execution_minutes_for_day(
             self.TRADING_START_DT
         )
@@ -994,15 +994,15 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         asset1 = cls.asset_finder.retrieve_asset(1)
         asset2 = cls.asset_finder.retrieve_asset(2)
         yield asset1.sid, create_minute_df_for_asset(
-            cls.env,
+            cls.trading_schedule,
             asset1.start_date,
             asset1.end_date,
             start_val=2,
         )
         yield asset2.sid, create_minute_df_for_asset(
-            cls.env,
+            cls.trading_schedule,
             asset2.start_date,
-            cls.env.previous_trading_day(asset2.end_date),
+            cls.trading_schedule.previous_execution_day(asset2.end_date),
             start_val=2,
             minute_blacklist=[
                 pd.Timestamp('2015-01-08 14:31', tz='UTC'),
@@ -1459,6 +1459,7 @@ class DailyEquityHistoryTestCase(WithHistory, ZiplineTestCase):
         # trading_start is 2/3/2014
         # get a history window that starts before that, and ends after that
 
+        self.data_portal.set_first_trading_day(self.TRADING_START_DT)
         second_day = default_nyse_schedule.next_execution_day(
             self.TRADING_START_DT
         )
